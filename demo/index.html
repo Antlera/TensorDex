@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TensorDex — Tensor-aware content-addressable storage for ML weights</title>
+<style>
+  :root {
+    --bg: #fbfbfd;
+    --bg-alt: #f3f4f8;
+    --ink: #1b1b29;
+    --ink-soft: #4a4a63;
+    --ink-faint: #8a8aa3;
+    --line: #e3e3ee;
+    --line-strong: #cfcfe0;
+    --accent: #4f46e5;     /* indigo — TensorDex core */
+    --accent-soft: #eef0ff;
+    --flex: #0d9488;       /* teal — FlexSplit */
+    --flex-soft: #e3f5f2;
+    --warn: #b45309;
+    --raw: #0d9488;
+    --delta: #4f46e5;
+    --serif: "Iowan Old Style", "Palatino Linotype", "Source Serif Pro", Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+    --maxw: 1080px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.65;
+    -webkit-font-smoothing: antialiased; font-size: 17px;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+
+  /* ---- top meetup banner ---- */
+  .topbar { background: linear-gradient(90deg, var(--accent) 0%, #4f46e5 45%, var(--flex) 100%); color:#fff; }
+  .topbar .wrap { display:flex; align-items:center; gap:18px; min-height:86px; padding-top:16px; padding-bottom:16px; flex-wrap:wrap; }
+  .tb-tag { font-family:var(--mono); font-size:14px; letter-spacing:0.18em; text-transform:uppercase;
+    background:rgba(255,255,255,0.2); padding:6px 16px; border-radius:20px; }
+  .tb-main { font-family:var(--serif); font-weight:700; font-size:35px; letter-spacing:-0.01em; }
+  .tb-brand { display:inline-flex; align-items:center; gap:11px; background:#fff; color:#1664ff;
+    font-family:var(--serif); font-weight:700; font-size:30px; letter-spacing:-0.01em; line-height:1;
+    padding:7px 17px 7px 13px; border-radius:14px; box-shadow:0 2px 10px -4px rgba(0,0,0,0.3); }
+  .bd-icon { width:30px; height:30px; display:block; flex:none; filter: drop-shadow(0 0 6px rgba(60,140,255,0.30)); }
+  @media (max-width:640px){ .tb-brand { font-size:21px; padding:6px 12px 6px 8px; } .bd-icon { width:26px; height:26px; } }
+  .tb-sep { opacity:0.55; font-size:27px; }
+  .tb-who { font-family:var(--serif); font-weight:600; font-size:35px; letter-spacing:-0.01em; }
+  .tb-at { opacity:0.92; font-family:var(--mono); font-size:22px; }
+  .tb-at b { font-weight:600; }
+  @media (max-width:640px){ .tb-main, .tb-who { font-size:25px; } .tb-at { font-size:16px; } .tb-tag { font-size:12px; } }
+
+  /* ---- nav ---- */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(251,251,253,0.82); backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 28px; height: 66px; }
+  nav .brand { font-family: var(--serif); font-weight: 700; font-size: 27px; letter-spacing: -0.02em; }
+  nav .brand b { color: var(--accent); }
+  nav .links { margin-left: auto; display: flex; gap: 22px; font-size: 14.5px; }
+  nav .links a { color: var(--ink-soft); }
+  nav .links a:hover { color: var(--accent); text-decoration: none; }
+  nav .links a.flex:hover { color: var(--flex); }
+  @media (max-width: 720px){ nav .links { display: none; } }
+
+  /* ---- hero ---- */
+  header.hero { padding: 88px 0 60px; border-bottom: 1px solid var(--line);
+    background:
+      radial-gradient(60% 70% at 78% 0%, #eef0ff 0%, rgba(238,240,255,0) 60%),
+      radial-gradient(50% 60% at 8% 18%, #e3f5f2 0%, rgba(227,245,242,0) 55%);
+  }
+  .eyebrow { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 18px; }
+  .hero h1 { font-size: 52px; margin: 0 0 20px; max-width: 32ch; text-wrap: balance; }
+  .hero .lede { font-size: 20px; color: var(--ink-soft); max-width: 74ch; margin: 0 0 30px; }
+  .hero .lede b { color: var(--ink); font-weight: 600; }
+  .cta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .btn { display: inline-block; padding: 11px 20px; border-radius: 9px; font-size: 15px;
+    font-weight: 550; border: 1px solid transparent; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #4036c9; text-decoration: none; }
+  .btn.ghost { background: #fff; border-color: var(--line-strong); color: var(--ink); }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+  @media (max-width: 640px){ .hero h1 { font-size: 38px; } }
+
+  /* ---- stat band ---- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    margin-top: 52px; }
+  .stat { background: #fff; padding: 22px 24px; }
+  .stat .n { font-family: var(--serif); font-size: 30px; font-weight: 600; color: var(--accent); }
+  .stat .l { font-size: 13.5px; color: var(--ink-soft); margin-top: 2px; }
+  @media (max-width: 720px){ .stats { grid-template-columns: repeat(2,1fr); } }
+
+  /* ---- sections ---- */
+  section { padding: 74px 0; border-bottom: 1px solid var(--line); }
+  section.alt { background: var(--bg-alt); }
+  .kicker { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px; }
+  .kicker.flex { color: var(--flex); }
+  h2.sec { font-size: 34px; margin: 0 0 14px; }
+  .sec-lede { font-size: 18.5px; color: var(--ink-soft); max-width: none; margin: 0 0 36px; }
+
+  /* ---- problem comparison ---- */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 26px; }
+  .card.bad { border-color: #f0d9d9; }
+  .card.good { border-color: #d4ece8; }
+  .card h3 { margin: 0 0 6px; font-size: 20px; }
+  .card .tag { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .card.bad .tag { color: #b3261e; }
+  .card.good .tag { color: var(--flex); }
+  .card p { font-size: 15.5px; color: var(--ink-soft); margin: 14px 0 0; }
+  .blocks { display: flex; gap: 6px; margin-top: 18px; flex-wrap: wrap; }
+  .blk { width: 30px; height: 30px; border-radius: 6px; display: grid; place-items: center;
+    font-size: 11px; font-family: var(--mono); color: #fff; }
+  .blk.s { background: var(--accent); }      /* shared */
+  .blk.d { background: var(--flex); }         /* delta */
+  .blk.u { background: #b9b9cf; }             /* unique/raw */
+  .blk.x { background: #fff; border: 1.5px dashed #d9b3b3; color: #b3261e; }
+  .legend { display: flex; gap: 16px; margin-top: 16px; font-size: 13px; color: var(--ink-soft); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  @media (max-width: 760px){ .compare { grid-template-columns: 1fr; } }
+
+  /* ---- architecture ---- */
+  .arch { background: #fff; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .arch-layer { padding: 22px 26px; border-bottom: 1px solid var(--line); }
+  .arch-layer:last-child { border-bottom: 0; }
+  .arch-layer .lbl { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 14px; }
+  .arch-layer.py { background: linear-gradient(0deg,#fff,#fbfbff); }
+  .arch-layer.py .lbl { color: var(--accent); }
+  .arch-layer.rs { background: linear-gradient(0deg,#fff,#fbfdfc); }
+  .arch-layer.rs .lbl { color: var(--flex); }
+  .mods { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .mod { border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; background: #fff; }
+  .mod b { font-family: var(--mono); font-size: 13px; display: block; color: var(--ink); }
+  .mod span { font-size: 12.5px; color: var(--ink-faint); }
+  .arch-rule { padding: 16px 26px; background: var(--accent-soft); font-size: 14.5px; color: var(--ink-soft); }
+  .arch-rule b { color: var(--accent); }
+  @media (max-width: 760px){ .mods { grid-template-columns: repeat(2,1fr); } }
+
+  /* ---- algorithm grid ---- */
+  .algos { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .algo { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 24px; }
+  .algo .n { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+  .algo h3 { font-size: 19px; margin: 6px 0 8px; }
+  .algo p { font-size: 14.8px; color: var(--ink-soft); margin: 0; }
+  .algo .pill { display:inline-block; margin-top:14px; font-family: var(--mono); font-size:11.5px;
+    background: var(--bg-alt); border:1px solid var(--line); border-radius:20px; padding:3px 11px; color:var(--ink-soft); }
+  @media (max-width: 760px){ .algos { grid-template-columns: 1fr; } }
+
+  /* ---- pipeline ---- */
+  .pipe { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-top: 8px; }
+  .step { background:#fff; border:1px solid var(--line); border-radius:11px; padding:16px 14px; position:relative; }
+  .step .i { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight:600; }
+  .step b { display:block; font-size:14.5px; margin:6px 0 4px; }
+  .step span { font-size:12.8px; color: var(--ink-faint); }
+  @media (max-width: 900px){ .pipe { grid-template-columns: repeat(2,1fr); } }
+
+  /* ---- FlexSplit lab ---- */
+  .flexsec { background:
+      radial-gradient(70% 60% at 90% 0%, #e3f5f2 0%, rgba(227,245,242,0) 55%); }
+
+  /* two-algorithm intro: FlexSplit (model store) → FlexSplit (ckpt store) */
+  .algo-intro { background:#fff; border:1px solid var(--line); border-radius:16px; padding:24px 26px 22px; margin-bottom:18px; }
+  .algo-display { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .algo-display .name { font-family:var(--serif); font-weight:700; letter-spacing:-0.025em; line-height:1; }
+  .algo-display .store { font-family:var(--mono); font-size:12.5px; letter-spacing:0.1em; text-transform:uppercase; padding:5px 13px; border-radius:20px; font-weight:600; }
+  .algo-display.fs .name { font-size:58px; color:var(--accent); }
+  .algo-display.fs .store { background:var(--accent-soft); color:var(--accent); }
+  .algo-display.fd .name { font-size:58px; color:var(--flex); }
+  .algo-display.fd .store { background:var(--flex-soft); color:var(--flex); }
+  .algo-sub { color:var(--ink-soft); font-size:15.5px; margin:12px 0 0; max-width:none; }
+  .algo-arrow { text-align:center; font-family:var(--mono); font-size:13px; color:var(--ink-faint); margin:16px 0; }
+  .algo-arrow b { color:var(--flex); }
+  .fs-anim { margin-top:18px; }
+  .fs-anim svg { width:100%; max-width:540px; height:auto; display:block; }
+  .fs-dot { transition: transform .9s cubic-bezier(.4,0,.2,1); }
+  .fs-dot circle { transition: r .9s, fill .9s, stroke .4s, stroke-width .4s; }
+  .fs-link { transition: opacity .9s; }
+  .fs-cap { font-size:12.5px; color:var(--ink-faint); font-family:var(--mono); margin-top:8px; min-height:18px; }
+  @media (max-width:560px){ .algo-display.fs .name, .algo-display.fd .name { font-size:40px; } }
+  .lab { background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow: 0 1px 0 rgba(13,148,136,0.05), 0 18px 40px -28px rgba(13,148,136,0.35); }
+  .lab-top { padding: 26px 28px 8px; }
+  .lab-grid { display:grid; grid-template-columns: 1fr 320px; gap:0; }
+  .lab-viz { padding: 8px 28px 28px; border-right:1px solid var(--line); min-height: 320px; }
+  .lab-controls { padding: 22px 26px; background: var(--bg-alt); }
+  @media (max-width: 860px){ .lab-grid { grid-template-columns: 1fr; } .lab-viz { border-right:0; border-bottom:1px solid var(--line); } }
+  .ctrl { margin-bottom: 22px; }
+  .ctrl label { display:flex; justify-content:space-between; font-size:13.5px; color:var(--ink-soft); margin-bottom:8px; }
+  .ctrl label b { font-family: var(--mono); color: var(--flex); font-weight:600; }
+  input[type=range]{ width:100%; accent-color: var(--flex); }
+  .ctrl .hint { font-size:12px; color: var(--ink-faint); margin-top:6px; }
+  .seg { display:flex; gap:6px; flex-wrap:wrap; }
+  .seg button { font: inherit; font-size:12.5px; padding:5px 11px; border:1px solid var(--line-strong);
+    background:#fff; border-radius:20px; cursor:pointer; color:var(--ink-soft); }
+  .seg button.on { background: var(--flex); border-color: var(--flex); color:#fff; }
+
+  /* chain viz */
+  .chainviz { margin: 22px 0 8px; }
+  .ck-row { display:flex; align-items:flex-end; gap:0; position:relative; height: 120px; padding-top: 10px; }
+  .node { display:flex; flex-direction:column; align-items:center; gap:7px; flex:1; position:relative; z-index:2; }
+  .ball { width:26px; height:26px; border-radius:50%; border:2px solid var(--delta); background:#fff;
+    display:grid; place-items:center; font-size:10px; font-family:var(--mono); color:var(--delta); transition: all .25s; }
+  .node.base .ball { background: var(--raw); border-color: var(--raw); color:#fff; width:30px; height:30px; box-shadow:0 0 0 4px var(--flex-soft); }
+  .node .cap { font-size:10.5px; color:var(--ink-faint); font-family:var(--mono); }
+  .node.base .cap { color: var(--flex); font-weight:600; }
+  .ball.sh { border-color: var(--warn); box-shadow: 0 0 0 3px #fbe6c8; }
+  .cap.shift { color: var(--warn); font-weight: 600; }
+  svg.links { position:absolute; inset:0; width:100%; height:100%; z-index:1; overflow:visible; }
+  .vizhint { font-size:12.5px; color:var(--ink-faint); }
+  .vizhint .swatch { display:inline-block; width:11px; height:11px; border-radius:50%; vertical-align:-1px; margin:0 3px 0 10px; }
+
+  /* storage bars */
+  .bars { margin-top: 8px; }
+  .bar-row { display:grid; grid-template-columns: 96px 1fr 92px; align-items:center; gap:12px; margin:9px 0; }
+  .bar-row .name { font-family:var(--mono); font-size:12.5px; color:var(--ink-soft); }
+  .bar-row .name.win { color: var(--flex); font-weight:700; }
+  .track { background: var(--bg-alt); border:1px solid var(--line); border-radius:6px; height:22px; overflow:hidden; position:relative; }
+  .fill { height:100%; border-radius:5px 0 0 5px; transition: width .35s ease; }
+  .fill.std { background: linear-gradient(90deg,#7c75e8,#4f46e5); }
+  .fill.win { background: linear-gradient(90deg,#2bb6a6,#0d9488); }
+  .fill.chain { background: linear-gradient(90deg,#c0c0d6,#9a9ab8); }
+  .bar-row .val { font-family:var(--mono); font-size:12.5px; text-align:right; color:var(--ink); }
+  .bar-row .val small { color: var(--ink-faint); }
+  .barnote { font-size:12.5px; color:var(--ink-faint); margin-top:14px; }
+
+  /* code block */
+  .codeblock { background:#1d1d2b; color:#e6e6f0; border-radius:14px; padding:22px 24px; overflow-x:auto;
+    font-family: var(--mono); font-size:13.5px; line-height:1.7;
+    white-space: pre; tab-size: 2; -moz-tab-size: 2; }
+  .codeblock .c { color:#8a8aa8; }
+  .codeblock .k { color:#c4b5fd; }
+  .codeblock .f { color:#5eead4; }
+  .codeblock .s { color:#fca5a5; }
+  .codeblock .n { color:#fcd34d; }
+
+  /* sketch flow chain */
+  .flow { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; margin:0 0 18px; }
+  .flow .box { flex:1 1 120px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:15px 14px; text-align:center; }
+  .flow .box.hi { border-color:#d2d4ff; }
+  .flow .box.hif { border-color:#cdeae5; }
+  .flow .box .t { font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); }
+  .flow .box .v { font-family:var(--serif); font-size:21px; font-weight:600; margin:5px 0 2px; }
+  .flow .box.hi .v { color:var(--accent); }
+  .flow .box.hif .v { color:var(--flex); }
+  .flow .box .s { font-size:12px; color:var(--ink-soft); }
+  .flow .arr { display:grid; place-items:center; padding:0 4px; color:var(--ink-faint); font-family:var(--mono); font-size:13px; min-width:46px; line-height:1.25; }
+  @media (max-width:760px){ .flow { flex-direction:column; } .flow .arr { padding:6px 0; } }
+  .callout { background:var(--flex-soft); border:1px solid #cdeae5; border-radius:10px; padding:13px 16px; font-size:14.5px; color:var(--ink-soft); }
+  .callout b { color:var(--flex); }
+  .algos.three { grid-template-columns:repeat(3,1fr); }
+  @media (max-width:820px){ .algos.three { grid-template-columns:1fr; } }
+  .algo.win { border-color:#cdeae5; background:linear-gradient(0deg,#fff,#fafdfc); }
+  .algo.win h3 { color:var(--flex); }
+  .pill.warn { background:#fdf3e7; border-color:#f0dcc0; color:var(--warn); }
+  .pill.go { background:var(--flex-soft); border-color:#cdeae5; color:var(--flex); }
+
+  .two { display:grid; grid-template-columns: 1.05fr 1fr; gap: 32px; align-items:start; }
+  @media (max-width: 860px){ .two { grid-template-columns: 1fr; } }
+  .points { list-style:none; padding:0; margin:0; }
+  .points li { padding:14px 0; border-bottom:1px solid var(--line); font-size:15.5px; color:var(--ink-soft); }
+  .points li:last-child { border-bottom:0; }
+  .points li b { color:var(--ink); font-weight:600; font-family:var(--serif); }
+  .points-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 36px; }
+  .points-grid li:nth-last-child(2) { border-bottom:0; }
+  @media (max-width:760px){ .points-grid { grid-template-columns:1fr; } .points-grid li:nth-last-child(2){ border-bottom:1px solid var(--line); } }
+
+  /* ---- runnable reconstruct + download demo ---- */
+  .try { background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow: 0 18px 40px -28px rgba(79,70,229,0.35); }
+  .try-top { padding:24px 28px 6px; }
+  .try-grid { display:grid; grid-template-columns:300px 1fr; gap:0; }
+  @media (max-width:820px){ .try-grid { grid-template-columns:1fr; } }
+  .try-ctrls { padding:22px 26px; background:var(--bg-alt); border-right:1px solid var(--line); }
+  @media (max-width:820px){ .try-ctrls { border-right:0; border-bottom:1px solid var(--line); } }
+  .try-flow { padding:22px 26px; }
+  .tstep { display:grid; grid-template-columns:30px 1fr auto; align-items:center; gap:12px;
+    padding:13px 0; border-bottom:1px solid var(--line); }
+  .tstep:last-child { border-bottom:0; }
+  .tstep .ti { width:26px; height:26px; border-radius:50%; display:grid; place-items:center;
+    font-family:var(--mono); font-size:12px; font-weight:600; background:var(--accent-soft); color:var(--accent); }
+  .tstep.ok .ti { background:var(--flex-soft); color:var(--flex); }
+  .tstep .tl b { font-family:var(--serif); font-size:15.5px; }
+  .tstep .tl span { display:block; font-size:12.5px; color:var(--ink-faint); }
+  .tstep .tv { font-family:var(--mono); font-size:13px; text-align:right; color:var(--ink); white-space:nowrap; }
+  .tstep .tv b { color:var(--flex); }
+  .verdict { margin-top:18px; padding:14px 16px; border-radius:11px; font-size:14.5px; font-family:var(--mono); }
+  .verdict.ok { background:var(--flex-soft); color:#0a6e64; border:1px solid #cdeae5; }
+  .verdict.bad { background:#fdecec; color:#b3261e; border:1px solid #f3d4d4; }
+  .tbtn { display:inline-flex; align-items:center; gap:8px; width:100%; justify-content:center;
+    padding:12px 18px; border-radius:10px; font:inherit; font-size:15px; font-weight:600; cursor:pointer;
+    border:1px solid transparent; background:var(--accent); color:#fff; margin-top:6px; }
+  .tbtn:hover { background:#4036c9; }
+  .tbtn.dl { background:var(--flex); margin-top:12px; }
+  .tbtn.dl:hover { background:#0b7d72; }
+  .tbtn:disabled { opacity:0.5; cursor:not-allowed; }
+  .try-note { font-size:12.5px; color:var(--ink-faint); margin-top:14px; line-height:1.55; }
+
+  footer { padding: 50px 0 70px; color: var(--ink-faint); font-size: 14px; }
+  footer .wrap { display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+  footer b { font-family:var(--serif); color:var(--ink); }
+  .badge { font-family:var(--mono); font-size:11.5px; background:var(--flex-soft); color:var(--flex);
+    padding:2px 9px; border-radius:20px; border:1px solid #cdeae5; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <span class="tb-tag">Meetup</span>
+    <span class="tb-brand">
+      <svg class="bd-icon" viewBox="0 0 24 24" role="img" aria-label="ByteDance logo">
+        <path fill="#3C8CFF" d="M19.8772 1.4685L24 2.5326v18.9426l-4.1228 1.0563V1.4685zm-13.3481 9.428l4.115 1.0641v8.9786l-4.115 1.0642v-11.107zM0 2.572l4.115 1.0642v16.7354L0 21.428V2.572zm17.4553 5.6205v11.107l-4.1228-1.0642V9.2568l4.1228-1.0642z"/>
+      </svg>
+      ByteDance Seed
+    </span>
+    <span class="tb-sep">·</span>
+    <span class="tb-who">Tingfeng Lan</span>
+    <span class="tb-at">@ <b>TensorDex Team</b></span>
+  </div>
+</div>
+
+<nav>
+  <div class="wrap">
+    <div class="brand">Tensor<b>Hub</b></div>
+    <div class="links">
+      <a href="#problem">Problem</a>
+      <a href="#sketch">Why a sketch</a>
+      <a href="#flexsplit" class="flex">The plan</a>
+      <a href="#internals">Under the hood</a>
+      <a href="#try" class="flex">Try it</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Content-Addressable Storage · Rust + Python</div>
+    <h1>Tensor-aware storage for the weights you keep re-saving.</h1>
+    <p class="lede">
+      Dedup and delta-compress model weights at the <b>tensor level</b>, not the file level. Two ideas carry it:
+      a <b>sketch</b> that finds similar tensors, and a <b>plan</b> that turns those into the cheapest base layout.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="#sketch">Why a sketch ↓</a>
+      <a class="btn ghost" href="#flexsplit">See the plan in action</a>
+    </div>
+
+    <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat"><div class="n">27.4%</div><div class="l">extra savings on 48 Llama-3.2-3B fine-tunes, past file-level dedup</div></div>
+      <div class="stat"><div class="n">2 KB</div><div class="l">sketch that stands in for a megabyte-scale tensor when planning</div></div>
+      <div class="stat"><div class="n">depth 1</div><div class="l">every checkpoint rebuilt from a raw base in one hop</div></div>
+    </div>
+  </div>
+</header>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="wrap">
+    <div class="kicker">The gap file-level stores can't close</div>
+    <h2 class="sec">Two fine-tunes of one base share almost everything. Git LFS sees two files.</h2>
+    <p class="sec-lede">
+      HuggingFace stores whole <code>.safetensors</code> via Git LFS — so two fine-tunes of one base dedup to
+      <b>zero</b>. TensorDex keys every tensor by content instead.
+    </p>
+    <div class="compare">
+      <div class="card bad">
+        <span class="tag">File-level (Git LFS)</span>
+        <h3>Whole files, hashed whole</h3>
+        <div class="blocks">
+          <div class="blk u">A</div><div class="blk u">A</div><div class="blk u">A</div><div class="blk u">A</div>
+          <div class="blk x">A'</div><div class="blk x">A'</div><div class="blk x">A'</div><div class="blk x">B</div>
+        </div>
+        <p>One changed tensor flips the file hash → the entire fine-tune is stored again. Shared layers pay twice.</p>
+        <div class="legend">
+          <span><i class="dot" style="background:#b9b9cf"></i>stored bytes</span>
+          <span><i class="dot" style="background:#fff;border:1.5px dashed #d9b3b3"></i>re-stored, near-identical</span>
+        </div>
+      </div>
+      <div class="card good">
+        <span class="tag">Tensor-level (TensorDex)</span>
+        <h3>Tensors, keyed by content</h3>
+        <div class="blocks">
+          <div class="blk s">A</div><div class="blk s">A</div><div class="blk s">A</div><div class="blk s">A</div>
+          <div class="blk d">Δ</div><div class="blk d">Δ</div><div class="blk d">Δ</div><div class="blk u">B</div>
+        </div>
+        <p>Identical tensors dedup to one blob; divergent ones become deltas against a base. You pay for novelty, not for copies.</p>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--accent)"></i>shared (stored once)</span>
+          <span><i class="dot" style="background:var(--flex)"></i>delta vs base</span>
+          <span><i class="dot" style="background:#b9b9cf"></i>new raw tensor</span>
+        </div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:26px">
+      <b>The catch.</b> A delta only pays off between <em>similar</em> tensors — so first you must find, across
+      thousands of them, which pairs are close. Reading the real weights to check is the expensive part.
+    </div>
+  </div>
+</section>
+
+<!-- WHY A SKETCH -->
+<section id="sketch" class="alt">
+  <div class="wrap">
+    <div class="kicker">Why a sketch</div>
+    <h2 class="sec">Measure similarity without ever reading the weights.</h2>
+    <p class="sec-lede">
+      Pairwise similarity over <em>N</em> tensors is <code>O(N²)</code> — ruinous over megabytes each.
+      <b>TensorSketch</b> collapses every tensor to a fixed <b>2&nbsp;KB</b> sketch whose L2 distance estimates the
+      originals' <em>Hamming distance</em> — which a fitted model maps straight to a predicted compression ratio.
+    </p>
+
+    <div class="flow">
+      <div class="box"><div class="t">one weight</div><div class="v">~12 MB</div><div class="s">bf16 tensor</div></div>
+      <div class="arr">→</div>
+      <div class="box hi"><div class="t">TensorSketch</div><div class="v">2 KB</div><div class="s">d=2 × w=1024 int32, fixed</div></div>
+      <div class="arr">‖Δ‖²<br>→</div>
+      <div class="box"><div class="t">distance</div><div class="v">p</div><div class="s">≈ Hamming fraction</div></div>
+      <div class="arr">Hybrid<br>→</div>
+      <div class="box hif"><div class="t">predict_cr(p)</div><div class="v">CR</div><div class="s">no compression run</div></div>
+    </div>
+    <div class="callout">
+      <b>~6000× smaller to compare.</b> The whole pairwise table becomes arithmetic on tiny arrays — computed
+      once at ingest, reused by every plan.
+    </div>
+
+    <p class="sec-lede" style="margin:42px 0 18px">So why not just measure similarity directly?</p>
+    <div class="algos three">
+      <div class="algo">
+        <div class="n">option A</div>
+        <h3>Actually compress every pair</h3>
+        <p>Run the real codec on every candidate pair — i.e. do the very work you're trying to <em>plan</em>, N² times over.</p>
+        <span class="pill warn">≈ N² codec runs · circular</span>
+      </div>
+      <div class="algo">
+        <div class="n">option B</div>
+        <h3>Compare the full weights</h3>
+        <p>Diff raw bytes pairwise. Correct — but every pair reads two megabyte-scale tensors; bandwidth dies long before the table is scored.</p>
+        <span class="pill warn">≈ N² × MBs · bandwidth-bound</span>
+      </div>
+      <div class="algo win">
+        <div class="n">option C — TensorDex</div>
+        <h3>Compare the sketches</h3>
+        <p>Hash each tensor to a 2&nbsp;KB sketch <em>once</em> at ingest. Every pair is then a tiny-vector L2 → predicted CR — the weights are never touched again.</p>
+        <span class="pill go">≈ N² × 2 KB · the cheap one</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FLEXSPLIT -->
+<section id="flexsplit" class="flexsec">
+  <div class="wrap">
+    <div class="kicker flex">The plan · one idea, two stores</div>
+
+    <!-- FlexSplit — model store (animated) -->
+    <div class="algo-intro">
+      <div class="algo-display fs">
+        <span class="name">FlexSplit</span>
+        <span class="store">model store</span>
+      </div>
+      <p class="algo-sub">
+        Across a <em>collection</em> of models — e.g. 48 fine-tunes of one base. Everything starts attached to a
+        single base (a star); FlexSplit then <b>splits off</b> a new base wherever a candidate earns more than it
+        costs. This reaches the <b>27.4%</b>.
+      </p>
+      <div class="fs-anim">
+        <svg id="fsSvg" viewBox="0 0 520 200" preserveAspectRatio="xMidYMid meet">
+          <g id="fsLinks"></g><g id="fsDots"></g>
+        </svg>
+        <div class="fs-cap" id="fsCap"></div>
+      </div>
+    </div>
+
+    <div class="algo-arrow">same idea, now on a <b>time-ordered checkpoint chain</b> ↓</div>
+
+    <!-- FlexSplit — checkpoint store (the star) -->
+    <div class="algo-display fd" style="margin-bottom:18px">
+      <span class="name">FlexSplit</span>
+      <span class="store">checkpoint store</span>
+    </div>
+    <p class="sec-lede">
+      One training run emits a <em>time-ordered</em> chain of checkpoints. Every pair has a predicted ratio, so the
+      <b>plan</b> picks the topology — which checkpoints stay raw <b>bases</b>, which attach as deltas.
+      <b>FlexSplit</b> <b>recursively divides</b> the series, opening a new base only where it pays off; the
+      fingerprints decide how many, not a fixed <code>K</code>.
+    </p>
+
+    <div class="lab">
+      <div class="lab-top">
+        <strong style="font-family:var(--serif);font-size:18px;">Interactive — drift a checkpoint run, watch FlexSplit decide</strong>
+        <p style="margin:6px 0 0;color:var(--ink-soft);font-size:14.5px;">
+          Bars are <em>predicted</em> storage (TensorSketch → Hybrid CR model); the real <code>_split</code> recursion runs live, ported to JS.
+        </p>
+      </div>
+      <div class="lab-grid">
+        <div class="lab-viz">
+          <div class="chainviz">
+            <div class="ck-row" id="ckRow"><svg class="links" id="ckLinks"></svg></div>
+            <div class="vizhint">
+              FlexSplit topology —
+              <i class="swatch" style="background:var(--raw)"></i>raw base
+              <i class="swatch" style="background:#fff;border:2px solid var(--delta)"></i>delta → nearest base
+              <i class="swatch" style="background:#fff;border:2px solid var(--warn)"></i>regime shift
+            </div>
+          </div>
+          <div class="bars" id="bars"></div>
+          <div class="barnote" id="barnote"></div>
+        </div>
+        <div class="lab-controls">
+          <div class="ctrl">
+            <label>Checkpoints <b id="vN">28</b></label>
+            <input type="range" id="cN" min="4" max="60" value="28">
+          </div>
+          <div class="ctrl">
+            <label>Per-step drift <b id="vDrift">0.005</b></label>
+            <input type="range" id="cDrift" min="2" max="40" value="10">
+            <div class="hint">How fast adjacent checkpoints diverge. Low → star wins; high → bases must multiply.</div>
+          </div>
+          <div class="ctrl">
+            <label>Regime shift <b id="vJump">0.08</b></label>
+            <input type="range" id="cJump" min="0" max="30" value="20">
+            <div class="hint">A mid-run jump (LR restart / data shift) at the marked checkpoint. Forces FlexSplit to open a second base.</div>
+          </div>
+          <div class="ctrl">
+            <label>Split aggressiveness <b id="vMin">0.00</b></label>
+            <input type="range" id="cMin" min="0" max="25" value="0">
+            <div class="hint"><code>min_ratio</code> — gain must exceed this fraction of star cost before a base is opened.</div>
+          </div>
+          <div class="ctrl" style="margin-bottom:0">
+            <label>Preset</label>
+            <div class="seg" id="presets">
+              <button data-p="smooth">smooth run</button>
+              <button data-p="shift" class="on">regime shift</button>
+              <button data-p="chaotic">chaotic</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:42px;">
+      <div class="kicker flex">What the plan buys you</div>
+      <ul class="points points-grid">
+          <li><b>Free to plan.</b> The layout is chosen from 2 KB sketches — zero actual compression to decide it.</li>
+          <li><b>Adaptive.</b> The data picks the number of bases; no fixed <code>K</code> to guess, no bases wasted on the smooth stretch.</li>
+          <li><b>Depth 1.</b> Every member deltas to a <em>raw</em> base — one hop to reconstruct, unlike a depth-N chain.</li>
+          <li><b>Global.</b> It opens a base exactly where the series diverges, beating star / k-center / chain on the storage–depth trade-off.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- UNDER THE HOOD -->
+<section id="internals" class="alt">
+  <div class="wrap">
+    <div class="kicker">Under the hood</div>
+    <h2 class="sec">Python orchestrates. Rust owns the bytes and the truth.</h2>
+    <p class="sec-lede">
+      Python never holds durable state — SQLite is the single source of truth. The sketch and every codec live in Rust.
+    </p>
+    <div class="arch">
+      <div class="arch-layer py">
+        <div class="lbl">Python — <code>tensordex/</code> · I/O orchestration + API, holds no tensor bytes</div>
+        <div class="mods">
+          <div class="mod"><b>core/engine</b><span>ingest / get / pull / compress</span></div>
+          <div class="mod"><b>integrations/hf_io</b><span>HF download → ingest</span></div>
+          <div class="mod"><b>client/remote</b><span>pull a remote hub, blob-cache reuse</span></div>
+          <div class="mod"><b>cli</b><span>thin Typer layer, 1:1 to engine</span></div>
+        </div>
+      </div>
+      <div class="arch-layer rs">
+        <div class="lbl">Rust — <code>tensordex._ops</code> · owns all persistent state + processing</div>
+        <div class="mods">
+          <div class="mod"><b>MetadataStore</b><span>SQLite: tensors, mappings, deltas</span></div>
+          <div class="mod"><b>FingerprintStore</b><span>in-memory TensorSketch arena</span></div>
+          <div class="mod"><b>ingest pipeline</b><span>hash · dedup · sketch · blob · SQL</span></div>
+          <div class="mod"><b>compression</b><span>the TensorX codec + the planner</span></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="sec-lede" style="margin:42px 0 16px">Ingest is one atomic Rust call over memory-mapped safetensors — crash-safe, no orphan metadata.</p>
+    <div class="pipe">
+      <div class="step"><div class="i">0</div><b>Enumerate</b><span>tensor slots across shards</span></div>
+      <div class="step"><div class="i">1</div><b>Hash</b><span>XXH3-128, parallel</span></div>
+      <div class="step"><div class="i">2</div><b>Dedup</b><span>drop ids already stored</span></div>
+      <div class="step"><div class="i">3</div><b>Sketch</b><span>TensorSketch, parallel</span></div>
+      <div class="step"><div class="i">4</div><b>Blob write</b><span>2-level sharded layout</span></div>
+      <div class="step"><div class="i">5</div><b>Commit</b><span>atomic SQL transaction</span></div>
+    </div>
+
+    <div style="margin-top:34px" class="codeblock"><span class="c"># ingest a checkpoint group, let the plan compress it, round-trip exact</span>
+$ tensordex download EleutherAI/pythia-1b <span class="s">--revision step143000</span>
+$ tensordex compress <span class="s">--bundle</span> <span class="s">"pythia-1b@step*"</span>   <span class="c"># plan once over the chain (FlexSplit)</span>
+$ tensordex pull pythia-1b@step143000 -o ./out <span class="s">--verify</span>  <span class="c"># reconstructed + re-hashed</span></div>
+  </div>
+</section>
+
+<!-- TRY IT — runnable reconstruct + download -->
+<section id="try">
+  <div class="wrap">
+    <div class="kicker flex">Run it in your browser</div>
+    <h2 class="sec">Reconstruct a tensor from a delta — then download the exact <code>.safetensors</code>.</h2>
+    <p class="sec-lede">
+      No mockups. This stores a target tensor as a <b>TensorX delta</b> against a base, reconstructs it
+      <code>base + delta</code>, verifies the result is <b>byte-identical</b> with SHA-256, and writes a valid
+      <code>.safetensors</code> file you can open with the <code>safetensors</code> library.
+    </p>
+    <div class="try">
+      <div class="try-top">
+        <strong style="font-family:var(--serif);font-size:18px;">Delta round-trip</strong>
+        <p style="margin:6px 0 0;color:var(--ink-soft);font-size:14.5px;">A base weight + a sparse fine-tune — adjust, then reconstruct &amp; verify.</p>
+      </div>
+      <div class="try-grid">
+        <div class="try-ctrls">
+          <div class="ctrl">
+            <label>Tensor size <b id="tvN">4096</b></label>
+            <input type="range" id="tN" min="256" max="65536" step="256" value="4096">
+          </div>
+          <div class="ctrl">
+            <label>Fine-tune sparsity <b id="tvSp">3%</b></label>
+            <input type="range" id="tSp" min="1" max="40" value="3">
+            <div class="hint">Share of weights the fine-tune actually changes — the rest stay identical, so the delta is mostly zeros.</div>
+          </div>
+          <button class="tbtn" id="tRun">↻ Reconstruct &amp; verify</button>
+          <button class="tbtn dl" id="tDl" disabled>↓ Download .safetensors</button>
+          <div class="try-note" id="tNote">All client-side: Float32 tensors, a <code>TensorX</code> XOR delta, SHA-256 via WebCrypto.</div>
+        </div>
+        <div class="try-flow">
+          <div class="tstep" id="ts0"><div class="ti">1</div><div class="tl"><b>Base weight</b><span>raw float32 tensor</span></div><div class="tv" id="tb0">—</div></div>
+          <div class="tstep" id="ts1"><div class="ti">2</div><div class="tl"><b>Target (fine-tune)</b><span>base + sparse delta</span></div><div class="tv" id="tb1">—</div></div>
+          <div class="tstep" id="ts2"><div class="ti">3</div><div class="tl"><b>Stored as delta</b><span>TensorX — XOR target ⊕ base</span></div><div class="tv" id="tb2">—</div></div>
+          <div class="tstep" id="ts3"><div class="ti">4</div><div class="tl"><b>Reconstruct</b><span>delta ⊕ base = target</span></div><div class="tv" id="tb3">—</div></div>
+          <div class="tstep" id="ts4"><div class="ti">5</div><div class="tl"><b>Verify</b><span>SHA-256(reconstructed) == SHA-256(target)</span></div><div class="tv" id="tb4">—</div></div>
+          <div class="verdict" id="tVerdict" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <b>TensorDex</b> — tensor-aware content-addressable storage for ML weights.
+      <span class="badge">Apache-2.0</span>
+    </div>
+    <div>Rust <code>_ops</code> · Python API/CLI · SQLite source of truth · XXH3-128 · TensorSketch · TensorX · <span style="color:var(--flex)">FlexSplit</span></div>
+  </div>
+</footer>
+
+<script>
+// ---- faithful port of predict_cr + the FlexSplit recursive split ----
+const HYBRID = [-23.727944, 0.522466, 1.966862, -0.043132];
+const clamp = (x,a,b)=>Math.min(Math.max(x,a),b);
+
+function predictCR(p){
+  p = clamp(p, 0, 0.5);
+  const h = p <= 1e-15 ? 0 : -p*Math.log2(p) - (1-p)*Math.log2(1-p);
+  const t = 8*h;
+  const [a,b,c,d] = HYBRID;
+  return clamp(a*p + b*t + c*p*t + d, 0, 1);
+}
+
+// synthetic checkpoint run: cumulative drift along a 1-D "training trajectory".
+// pairwise p = |x[i]-x[j]| (the normalized Hamming fraction predict_cr expects).
+function buildPositions(n, drift, jump){
+  const x = [0];
+  const shiftAt = Math.floor(n*0.55);
+  for(let i=1;i<n;i++){
+    // gentle non-uniform drift + a regime jump at shiftAt
+    let step = drift * (0.7 + 0.6*((i*97)%5)/4);
+    if(i === shiftAt) step += jump;
+    x.push(x[i-1] + step);
+  }
+  // keep the run inside predict_cr's monotonic region so long chains stay
+  // well-behaved (no entry into the high-p tail) — scale the whole trajectory.
+  const span = x[n-1] - x[0], CAP = 0.20;
+  if(span > CAP){ const k = CAP/span; for(let i=0;i<n;i++) x[i] *= k; }
+  return {x, shiftAt};
+}
+
+function buildR(x){
+  const n = x.length;
+  const R = Array.from({length:n}, ()=>new Array(n).fill(0));
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) if(i!==j)
+    R[i][j] = predictCR(Math.abs(x[i]-x[j]));
+  return R;
+}
+
+function bestOpen(members, base, R){
+  let bestGain = 0, best = -1;
+  for(const cand of members){
+    if(cand === base) continue;
+    let gain = -(1 - R[cand][base]);
+    for(const m of members){
+      if(m === cand) continue;
+      if(R[m][cand] < R[m][base]) gain += R[m][base] - R[m][cand];
+    }
+    if(gain > bestGain){ bestGain = gain; best = cand; }
+  }
+  return [bestGain, best];
+}
+
+function splitRec(members, base, R, bases, minRatio){
+  if(members.length < 1) return;
+  const star = 1 + members.reduce((s,m)=>s+R[m][base],0);
+  const [gain, cand] = bestOpen(members, base, R);
+  if(cand === -1 || gain <= 0 || gain/Math.max(star,1e-9) < minRatio) return;
+  bases.push(cand);
+  const stay=[], move=[];
+  for(const m of members){
+    if(m===cand) continue;
+    (R[m][cand] < R[m][base] ? move : stay).push(m);
+  }
+  if(stay.length>=2) splitRec(stay, base, R, bases, minRatio);
+  if(move.length>=2) splitRec(move, cand, R, bases, minRatio);
+}
+
+function attach(n, bases, R){
+  // each non-base node attaches to its nearest base; return {assign, cost}
+  const set = new Set(bases);
+  const assign = {};
+  let cost = bases.length;
+  for(let i=0;i<n;i++){
+    if(set.has(i)){ assign[i]=i; continue; }
+    let bb=bases[0], bv=Infinity;
+    for(const b of bases){ if(R[i][b]<bv){ bv=R[i][b]; bb=b; } }
+    assign[i]=bb; cost+=bv;
+  }
+  return {assign, cost};
+}
+
+function strat(R, n, name, minRatio){
+  if(name==='chain'){ let c=1; for(let i=1;i<n;i++) c+=R[i][i-1]; return {cost:c, bases:[0], depth:'N'}; }
+  if(name==='star-first'){ const a=attach(n,[0],R); return {cost:a.cost, bases:[0], assign:a.assign, depth:'1'}; }
+  if(name==='star-mid'){ const m=Math.floor(n/2); const a=attach(n,[m],R); return {cost:a.cost, bases:[m], assign:a.assign, depth:'1'}; }
+  if(name==='k-center'){
+    const k=Math.min(4,n);
+    const bases=[...new Set(Array.from({length:k},(_,j)=>Math.round(j*(n-1)/(k-1))))].sort((p,q)=>p-q);
+    const a=attach(n,bases,R); return {cost:a.cost, bases, assign:a.assign, depth:'1'};
+  }
+  if(name==='flexsplit'){
+    const bases=[0]; splitRec(Array.from({length:n-1},(_,i)=>i+1), 0, R, bases, minRatio);
+    const uniq=[...new Set(bases)].sort((p,q)=>p-q);
+    const a=attach(n,uniq,R); return {cost:a.cost, bases:uniq, assign:a.assign, depth:'1'};
+  }
+}
+
+// ---- render ----
+const els = {
+  N:document.getElementById('cN'), drift:document.getElementById('cDrift'),
+  jump:document.getElementById('cJump'), min:document.getElementById('cMin'),
+  vN:document.getElementById('vN'), vDrift:document.getElementById('vDrift'),
+  vJump:document.getElementById('vJump'), vMin:document.getElementById('vMin'),
+  row:document.getElementById('ckRow'), links:document.getElementById('ckLinks'),
+  bars:document.getElementById('bars'), barnote:document.getElementById('barnote'),
+};
+
+const STRATS = [
+  {k:'flexsplit', label:'FlexSplit'},
+  {k:'star-first', label:'star-first'},
+  {k:'star-mid', label:'star-mid'},
+  {k:'k-center', label:'k-center'},
+  {k:'chain', label:'chain'},
+];
+
+function render(){
+  const n = +els.N.value;
+  const drift = +els.drift.value/2000;     // 0.001 .. 0.020 per step
+  const jump = +els.jump.value/250;        // 0.00 .. 0.12 regime jump
+  const minRatio = +els.min.value/100;     // 0.00 .. 0.25
+  els.vN.textContent = n;
+  els.vDrift.textContent = drift.toFixed(3);
+  els.vJump.textContent = jump.toFixed(2);
+  els.vMin.textContent = minRatio.toFixed(2);
+
+  const {x, shiftAt} = buildPositions(n, drift, jump);
+  const R = buildR(x);
+  const results = {}; STRATS.forEach(s=> results[s.k] = strat(R, n, s.k, minRatio));
+  const fd = results['flexsplit'];
+
+  // --- topology row (nodes shrink + labels thin out as the chain grows) ---
+  els.row.querySelectorAll('.node').forEach(el=>el.remove());
+  const baseSet = new Set(fd.bases);
+  const bs = n<=16 ? 26 : n<=28 ? 19 : n<=40 ? 14 : 11;   // delta-ball diameter
+  const showIdx = n<=16, showCap = n<=20, fs = n<=16 ? 10 : 8;
+  for(let i=0;i<n;i++){
+    const node = document.createElement('div');
+    node.className = 'node' + (baseSet.has(i)?' base':'');
+    node.dataset.i = i;
+    const isBase = baseSet.has(i);
+    const isShift = i===shiftAt && jump>0.0001;
+    const d = isBase ? bs+4 : bs;
+    const ballCls = (!isBase && isShift) ? 'ball sh' : 'ball';   // amber ring marks the regime shift
+    const ball = `<div class="${ballCls}" style="width:${d}px;height:${d}px;font-size:${fs}px">`+
+      `${isBase ? 'B' : (showIdx ? i : '')}</div>`;
+    const cap = showCap ? `<div class="cap${isShift?' shift':''}">${isShift?'shift':('c'+i)}</div>` : '';
+    node.innerHTML = ball + cap;
+    els.row.appendChild(node);
+  }
+  // draw delta links after layout
+  requestAnimationFrame(()=>drawLinks(fd, n));
+
+  // --- bars ---
+  const baseline = n; // all raw, in units of L
+  const maxCost = Math.max(...STRATS.map(s=>results[s.k].cost));
+  const best = STRATS.reduce((m,s)=> results[s.k].cost < results[m].cost ? s.k : m, 'chain');
+  els.bars.innerHTML = STRATS.map(s=>{
+    const r = results[s.k];
+    const pct = (r.cost/baseline*100);
+    const w = (r.cost/maxCost*100);
+    const win = s.k===best;
+    const cls = s.k==='flexsplit' ? 'win' : (s.k==='chain' ? 'chain' : 'std');
+    const nb = r.bases.length;
+    return `<div class="bar-row">
+      <div class="name ${win?'win':''}">${s.label}</div>
+      <div class="track"><div class="fill ${cls}" style="width:${w.toFixed(1)}%"></div></div>
+      <div class="val">${pct.toFixed(0)}%<small> · ${nb}b·d${r.depth}</small></div>
+    </div>`;
+  }).join('');
+
+  const fdPct = (fd.cost/baseline*100).toFixed(0);
+  const chPct = (results['chain'].cost/baseline*100).toFixed(0);
+  els.barnote.innerHTML =
+    `<b style="color:var(--flex)">FlexSplit</b> reduces to <b>${fdPct}%</b> of the all-raw baseline with `+
+    `<b>${fd.bases.length}</b> raw base${fd.bases.length>1?'s':''} at depth&nbsp;1 — `+
+    `chain reaches ${chPct}% but at depth&nbsp;${n}. `+
+    `<span style="color:var(--ink-faint)">Bars show predicted stored / baseline; <code>Nb</code>=raw bases, <code>dN</code>=reconstruction depth.</span>`;
+}
+
+function drawLinks(fd, n){
+  const svg = els.links;
+  const nodes = [...els.row.querySelectorAll('.node')];
+  const rowBox = els.row.getBoundingClientRect();
+  svg.setAttribute('viewBox', `0 0 ${rowBox.width} ${rowBox.height}`);
+  const center = el => {
+    const b = el.querySelector('.ball').getBoundingClientRect();
+    return { x: b.left - rowBox.left + b.width/2, y: b.top - rowBox.top + b.height/2 };
+  };
+  const op = n>40 ? 0.18 : n>24 ? 0.24 : 0.35;
+  const sw = n>40 ? 1.1 : 1.6;
+  let paths = '';
+  for(let i=0;i<n;i++){
+    const b = fd.assign[i];
+    if(b===i) continue;
+    const a = center(nodes[i]), c = center(nodes[b]);
+    const my = Math.min(a.y, c.y) - 18 - Math.min(Math.abs(i-b)*2, 34);
+    paths += `<path d="M${a.x},${a.y} Q${(a.x+c.x)/2},${my} ${c.x},${c.y}" `+
+      `fill="none" stroke="#4f46e5" stroke-opacity="${op}" stroke-width="${sw}"/>`;
+  }
+  svg.innerHTML = paths;
+}
+
+['input','change'].forEach(ev=>{
+  [els.N, els.drift, els.jump, els.min].forEach(el=> el.addEventListener(ev, render));
+});
+
+document.querySelectorAll('#presets button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#presets button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    const p = btn.dataset.p;
+    if(p==='smooth'){ els.N.value=20; els.drift.value=5; els.jump.value=0; els.min.value=0; }
+    if(p==='shift'){ els.N.value=28; els.drift.value=10; els.jump.value=20; els.min.value=0; }
+    if(p==='chaotic'){ els.N.value=48; els.drift.value=28; els.jump.value=28; els.min.value=4; }
+    render();
+  });
+});
+
+window.addEventListener('resize', ()=> render());
+render();
+
+// ---- FlexSplit intro: faithful attach → select candidate → split loop ----
+(function fsAnim(){
+  const NS='http://www.w3.org/2000/svg';
+  const svg=document.getElementById('fsSvg'); if(!svg) return;
+  const gD=document.getElementById('fsDots'), gL=document.getElementById('fsLinks'), cap=document.getElementById('fsCap');
+  const TEAL='#0d9488', INDIGO='#4f46e5', AMBER='#b45309', GRAY='#b9b9cf';
+  const B0=[190,100], B1=[392,100];   // base #0 (always) and where the candidate promotes to
+  // each tensor: attach position (all around B0), split position, and split role
+  //   role 'base' = this candidate promotes to base #1; 1 = re-attaches to B1; 0 = stays on B0
+  const sats=[
+    {att:[272,100], spl:B1,        role:'base'},   // the candidate
+    {att:[247,44],  spl:[354,58],  role:1},
+    {att:[247,156], spl:[354,142], role:1},
+    {att:[190,22],  spl:[150,40],  role:0},
+    {att:[112,62],  spl:[96,70],   role:0},
+    {att:[100,100], spl:[78,100],  role:0},
+    {att:[112,138], spl:[96,130],  role:0},
+    {att:[190,178], spl:[150,160], role:0},
+  ];
+  const circle=r=>{ const c=document.createElementNS(NS,'circle'); c.setAttribute('r',r); c.setAttribute('cx',0); c.setAttribute('cy',0); c.setAttribute('stroke-width',0); return c; };
+  const baseEl=(()=>{ const g=document.createElementNS(NS,'g'); g.setAttribute('class','fs-dot'); g.appendChild(circle(13)); gD.appendChild(g); return g; })();
+  const satEls=sats.map(()=>{ const g=document.createElementNS(NS,'g'); g.setAttribute('class','fs-dot'); g.appendChild(circle(8.5)); gD.appendChild(g); return g; });
+  const links=sats.map(()=>{ const l=document.createElementNS(NS,'line'); l.setAttribute('class','fs-link'); l.setAttribute('stroke',TEAL); l.setAttribute('stroke-width','1.6'); l.setAttribute('stroke-opacity','0'); gL.appendChild(l); return l; });
+  const place=(g,x,y)=>{ g.style.transform=`translate(${x}px,${y}px)`; };
+
+  // base #0 sits fixed and teal
+  place(baseEl,B0[0],B0[1]); baseEl.firstChild.setAttribute('fill',TEAL);
+
+  // initial attach layout with no transition (avoid fly-in from origin)
+  satEls.forEach((g,i)=>{ g.style.transition='none'; place(g,sats[i].att[0],sats[i].att[1]); g.firstChild.setAttribute('fill',INDIGO); });
+  void svg.getBoundingClientRect();
+  satEls.forEach(g=>g.style.transition='');
+
+  function link(i,x1,y1,x2,y2,on){ const l=links[i]; l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2); l.setAttribute('stroke-opacity',on?0.42:0); }
+
+  function apply(ph){
+    satEls.forEach((g,i)=>{
+      const s=sats[i], c=g.firstChild;
+      if(ph==='split'){
+        if(s.role==='base'){ place(g,s.spl[0],s.spl[1]); c.setAttribute('fill',TEAL); c.setAttribute('r',13); c.setAttribute('stroke-width',0); link(i,0,0,0,0,false); }
+        else { const tgt=s.role===1?B1:B0; place(g,s.spl[0],s.spl[1]); c.setAttribute('fill',INDIGO); c.setAttribute('r',8.5); c.setAttribute('stroke-width',0);
+               l_set(i,s.spl,tgt); }
+      } else { // attach or select — everyone is a delta on B0 (a star)
+        place(g,s.att[0],s.att[1]); c.setAttribute('fill',INDIGO); c.setAttribute('r',8.5);
+        const hot = ph==='select' && s.role==='base';
+        c.setAttribute('stroke', hot?AMBER:'none'); c.setAttribute('stroke-width', hot?3:0);
+        l_set(i,s.att,B0);
+      }
+    });
+    cap.textContent =
+      ph==='attach' ? 'start — attach every tensor to one base (a star)' :
+      ph==='select' ? 'pick the candidate that earns the most as its own base' :
+                      'split — open it; the rest re-attach to whichever base is closer';
+  }
+  function l_set(i,from,to){ link(i,from[0],from[1],to[0],to[1],true); }
+
+  const seq=['attach','select','split'], dur={attach:2400,select:1500,split:2700};
+  let pi=0;
+  (function tick(){ const ph=seq[pi]; apply(ph); pi=(pi+1)%seq.length; setTimeout(tick, dur[ph]); })();
+})();
+
+// ---- Try it: a real client-side delta round-trip (reconstruct + verify + download) ----
+(function tryDemo(){
+  const $=id=>document.getElementById(id);
+  if(!$('tRun')) return;
+  const fmt=b=> b<1024 ? b+' B' : b<1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(2)+' MB';
+  const mulberry32=a=>()=>{ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+  const u8of=f32=> new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength);
+
+  async function gzip(u8){ const cs=new CompressionStream('gzip'); const w=cs.writable.getWriter(); w.write(u8); w.close();
+    return new Uint8Array(await new Response(cs.readable).arrayBuffer()); }
+  async function gunzip(u8){ const ds=new DecompressionStream('gzip'); const w=ds.writable.getWriter(); w.write(u8); w.close();
+    return new Uint8Array(await new Response(ds.readable).arrayBuffer()); }
+  const hasGzip = typeof CompressionStream!=='undefined';
+
+  async function sha256(u8){
+    if(window.crypto && crypto.subtle){
+      const h=await crypto.subtle.digest('SHA-256', u8.buffer.slice(u8.byteOffset, u8.byteOffset+u8.byteLength));
+      return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+    let h=0x811c9dc5; for(let i=0;i<u8.length;i++){ h^=u8[i]; h=Math.imul(h,0x01000193); }
+    return (h>>>0).toString(16).padStart(8,'0').repeat(4);
+  }
+
+  function build(N, sp){
+    const rb=mulberry32(0x9e3779b9), rd=mulberry32(0x12345);
+    const base=new Float32Array(N), target=new Float32Array(N);
+    for(let i=0;i<N;i++){ base[i]=(rb()*2-1)*0.5; target[i]=base[i]; }
+    const k=Math.max(1, Math.floor(N*sp));
+    for(let j=0;j<k;j++){ const idx=(rd()*N)|0; target[idx]=base[idx]+(rd()*2-1)*0.12; }
+    return {base, target, k};
+  }
+  function safetensors(f32){
+    const tb=f32.byteLength;
+    const header=JSON.stringify({weight:{dtype:'F32',shape:[f32.length],data_offsets:[0,tb]},
+      __metadata__:{produced_by:'TensorDex demo · client-side reconstruct', reconstructed:'true'}});
+    const hb=new TextEncoder().encode(header);
+    const out=new Uint8Array(8+hb.length+tb);
+    new DataView(out.buffer).setBigUint64(0, BigInt(hb.length), true);
+    out.set(hb,8); out.set(u8of(f32), 8+hb.length);
+    return out;
+  }
+
+  let lastFile=null, lastN=0;
+  const setStep=(i,val,ok)=>{ $('tb'+i).innerHTML=val; $('ts'+i).classList.toggle('ok',!!ok); };
+  function reset(){ for(let i=0;i<5;i++) setStep(i,'—',false); $('tVerdict').style.display='none'; $('tDl').disabled=true; lastFile=null; }
+
+  async function run(){
+    const N=+$('tN').value, sp=+$('tSp').value/100;
+    $('tRun').disabled=true; reset();
+    const {base,target,k}=build(N,sp);
+    const rawBytes=N*4;
+    const hTarget=await sha256(u8of(target));
+    setStep(0, `${N.toLocaleString()} × f32 · <b>${fmt(rawBytes)}</b>`, true);
+    setStep(1, `${k.toLocaleString()} changed · ${hTarget.slice(0,8)}…`, true);
+
+    // store as delta — XOR target⊕base on the raw bytes (TensorX-style, exactly invertible)
+    const baseB=u8of(base), targetB=u8of(target);
+    const deltaB=new Uint8Array(rawBytes); for(let i=0;i<rawBytes;i++) deltaB[i]=targetB[i]^baseB[i];
+    let stored, ratio;
+    if(hasGzip){ stored=await gzip(deltaB); ratio=rawBytes/stored.length; }
+    else { let nz=0; for(let i=0;i<rawBytes;i++) if(deltaB[i]!==0) nz++; stored=deltaB; ratio=rawBytes/(nz+64); }
+    setStep(2, `<b>${fmt(hasGzip?stored.length:Math.round(rawBytes/ratio))}</b> · ${ratio.toFixed(1)}× smaller`, true);
+
+    // reconstruct: delta⊕base = target (XOR is self-inverse → byte-exact)
+    const decB = hasGzip ? await gunzip(stored) : deltaB;
+    const reconB=new Uint8Array(rawBytes); for(let i=0;i<rawBytes;i++) reconB[i]=decB[i]^baseB[i];
+    const recon=new Float32Array(reconB.buffer);
+    setStep(3, `${fmt(rawBytes)} restored`, true);
+
+    const hRecon=await sha256(u8of(recon));
+    const match = hRecon===hTarget;
+    setStep(4, match ? `match ✓` : `MISMATCH ✗`, match);
+    const v=$('tVerdict'); v.style.display='block'; v.className='verdict '+(match?'ok':'bad');
+    v.innerHTML = match
+      ? `✓ byte-exact — SHA-256 matches: <b>${hRecon.slice(0,16)}…</b>`
+      : `✗ reconstruction differs (${hRecon.slice(0,12)}… vs ${hTarget.slice(0,12)}…)`;
+
+    if(match){ lastFile=safetensors(recon); lastN=N; $('tDl').disabled=false; }
+    $('tRun').disabled=false;
+  }
+
+  $('tN').addEventListener('input', ()=>{ $('tvN').textContent=(+$('tN').value).toLocaleString(); reset(); });
+  $('tSp').addEventListener('input', ()=>{ $('tvSp').textContent=$('tSp').value+'%'; reset(); });
+  $('tRun').addEventListener('click', run);
+  $('tDl').addEventListener('click', ()=>{
+    if(!lastFile) return;
+    const blob=new Blob([lastFile], {type:'application/octet-stream'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=`reconstructed-${lastN}.safetensors`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  });
+  if(!hasGzip){ $('tNote').innerHTML='This browser can\'t entropy-code here — delta size is estimated from non-zeros. Reconstruct + verify + download still work.'; }
+  run();
+})();
+</script>
+</body>
+</html>

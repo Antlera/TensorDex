@@ -1,0 +1,71 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+*.egg-info/
+.eggs/
+.installed.cfg
+*.egg
+
+# Compiled extension module (built by maturin; do not commit)
+*.so
+*.pyd
+*.dylib
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test / type / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# --- Rust ---
+# Build artifacts only. Cargo.lock IS committed for reproducible builds.
+target/
+.cargo-target/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Secrets / credentials ---
+.env
+.env.*
+*.pem
+*.key
+
+# --- Local scratch ---
+# Default hub lives in ~/.cache/tensordex; ignore an in-tree ./data hub if used.
+/data/
+
+# --- Artifact Evaluation ---
+# The cache (results.db, blobs, aux data) is downloaded from the HF dataset;
+# rendered figures and the generated results page are build outputs.
+ae/cache
+ae/figures/
+ae/results.html
+# (the ~17 figures referenced by ae/RESULTS.md are force-added so the doc
+#  renders on GitHub; `make figures` overwrites them in place)
+
+# stray sqlite created if a chart runs from repo root (cache db lives in ae/cache/)
+/results.db
+
+# local logo source (committed copy lives in assets/)
+/tensordex-logo.png
+
+# EC2 handoff notes (local working doc, not for the public repo)
+/HANDOFF-EC2.md

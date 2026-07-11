@@ -1,0 +1,9 @@
+.git
+target
+.venv
+**/__pycache__
+.pytest_cache
+.benchmarks
+ae/cache
+ae/results.html
+results.db

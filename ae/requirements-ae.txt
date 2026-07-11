@@ -1,0 +1,14 @@
+# Extra Python deps for the Artifact Evaluation tiers (on top of the tensordex
+# package installed via `pip install .`). Exact validated versions are pinned
+# in requirements-freeze.txt if a future release ever breaks something. torch / safetensors / huggingface_hub
+# already come with the package; these cover figure rendering + verification.
+matplotlib>=3.6
+numpy>=1.21
+pandas>=1.5
+xxhash>=3.0
+pytest>=7.0           # `make check` — the offline unit-test smoke pass
+huggingface_hub>=0.20
+hnswlib>=0.7          # verify_recall.py — HNSW index for the Recall@1 experiment
+numba>=0.57           # ae/bench — accelerates the FlexSplit heuristic (optional; pure-Python fallback)
+# gurobipy>=11.0       # OPTIONAL — Fig 14 ILP curve only; needs a Gurobi license
+#                        (free academic). Without it, ILP is skipped automatically.

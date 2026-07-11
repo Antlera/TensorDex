@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" width="760" height="430" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="TensorDex demo: compress storage by 70.5%, then restore byte-exact weights">
+  <!-- window -->
+  <rect x="6" y="6" width="748" height="418" rx="14" fill="#1b1b29" stroke="#2e2e44" stroke-width="1.5"/>
+  <circle cx="34" cy="34" r="6" fill="#ff5f56"/>
+  <circle cx="56" cy="34" r="6" fill="#ffbd2e"/>
+  <circle cx="78" cy="34" r="6" fill="#27c93f"/>
+  <text x="380" y="39" text-anchor="middle" fill="#6f6f8a" font-size="14">tensordex — terminal</text>
+  <line x1="6" y1="56" x2="754" y2="56" stroke="#2e2e44" stroke-width="1"/>
+
+  <!-- L1: compress command -->
+  <text x="34" y="92" font-size="16.5">
+    <tspan fill="#5eead4">$ </tspan><tspan fill="#e6e6f0">tensordex </tspan><tspan fill="#c4b5fd">compress </tspan><tspan fill="#fca5a5">--auto-all</tspan>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.038;0.05;0.93;1" values="0;0;1;1;0"/>
+  </text>
+
+  <!-- L2: planning -->
+  <text x="34" y="123" font-size="15">
+    <tspan fill="#6f6f8a">→ </tspan><tspan fill="#5eead4">TensorSketch</tspan><tspan fill="#6f6f8a"> plans the layout — no weights read</tspan>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.106;0.118;0.93;1" values="0;0;1;1;0"/>
+  </text>
+
+  <!-- storage bar -->
+  <g>
+    <rect x="34" y="146" width="600" height="24" rx="6" fill="#2a2a3d"/>
+    <rect x="34" y="146" width="600" height="24" rx="6" fill="#9a9ab8">
+      <animate attributeName="width" dur="11s" repeatCount="indefinite" calcMode="spline" keyTimes="0;0.20;0.345;1" keySplines="0 0 1 1;0.22 1 0.36 1;0 0 1 1" values="600;600;174;174"/>
+      <animate attributeName="fill" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.20;0.345;1" values="#9a9ab8;#9a9ab8;#0d9488;#0d9488"/>
+    </rect>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.143;0.155;0.93;1" values="0;0;1;1;0"/>
+  </g>
+  <!-- bar labels (swap 40.0 TB -> 11.8 TB) -->
+  <text x="648" y="164" font-size="14.5" fill="#9a9ab8">40.0 TB
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.143;0.155;0.335;0.345;1" values="0;0;1;1;0;0"/>
+  </text>
+  <text x="648" y="164" font-size="14.5" fill="#5eead4">11.8 TB
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.333;0.345;0.93;1" values="0;0;1;1;0"/>
+  </text>
+
+  <!-- L3: result -->
+  <text x="34" y="212" font-size="16.5">
+    <tspan fill="#27c93f">✓ </tspan><tspan fill="#5eead4">70.5% saved</tspan><tspan fill="#9a9ab8"> · 3.39× smaller, losslessly</tspan>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.358;0.37;0.93;1" values="0;0;1;1;0"/>
+  </text>
+
+  <!-- L4: restore command -->
+  <text x="34" y="266" font-size="16.5">
+    <tspan fill="#5eead4">$ </tspan><tspan fill="#e6e6f0">tensordex </tspan><tspan fill="#c4b5fd">pull </tspan><tspan fill="#e6e6f0">llama-3.2-3b </tspan><tspan fill="#9a9ab8">-o ./out </tspan><tspan fill="#fca5a5">--verify</tspan>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.473;0.485;0.93;1" values="0;0;1;1;0"/>
+  </text>
+
+  <!-- L5: reconstruct -->
+  <text x="34" y="297" font-size="15">
+    <tspan fill="#6f6f8a">→ reconstruct: </tspan><tspan fill="#5eead4">base + delta</tspan><tspan fill="#6f6f8a"> → model.safetensors</tspan>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.538;0.55;0.93;1" values="0;0;1;1;0"/>
+  </text>
+
+  <!-- L6: verified -->
+  <text x="34" y="329" font-size="16.5">
+    <tspan fill="#27c93f">✓ </tspan><tspan fill="#5eead4">byte-exact</tspan><tspan fill="#9a9ab8"> — SHA-256 verified </tspan><tspan fill="#fcd34d">a1f3…9c2e</tspan>
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.653;0.665;0.93;1" values="0;0;1;1;0"/>
+  </text>
+
+  <!-- caption -->
+  <text x="380" y="383" text-anchor="middle" font-size="13" fill="#54546e">
+    compress → store → restore · your original weights back, bit-for-bit
+    <animate attributeName="opacity" dur="11s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.688;0.70;0.93;1" values="0;0;1;1;0"/>
+  </text>
+</svg>

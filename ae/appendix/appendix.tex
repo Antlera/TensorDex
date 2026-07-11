@@ -1,0 +1,475 @@
+% SOSP '26 TensorDex Artifacts — reviewer walkthrough
+% Build:  make appendix   (two pdflatex passes)
+\documentclass[11pt]{article}
+
+\usepackage[letterpaper, margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[scaled=0.92]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{booktabs}
+\usepackage{colortbl}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage[colorlinks=true, linkcolor=linkblue, urlcolor=linkblue,
+            pdftitle={SOSP'26 TensorDex Artifacts}]{hyperref}
+\usepackage{tcolorbox}
+\tcbuselibrary{listings, skins, breakable}
+
+% ── palette ─────────────────────────────────────────────────────────
+\definecolor{ink}{HTML}{202124}        % body text
+\definecolor{muted}{HTML}{5F6368}      % secondary text / box labels
+\definecolor{linkblue}{HTML}{1155CC}
+\definecolor{shellbg}{HTML}{F1F3F4}    % shell blocks
+\definecolor{termbg}{HTML}{FBF3DB}     % terminal-output blocks
+\definecolor{cmdred}{HTML}{C0392B}     % comments / keywords, like the ref doc
+\definecolor{strgreen}{HTML}{1E8E3E}
+\definecolor{noticeblue}{HTML}{1A0DAB}
+\color{ink}
+
+% ── headings: big, flush-left, sans (Google-Docs-guide look) ────────
+\titleformat{\section}{\LARGE\bfseries\color{ink}}{}{0em}{}
+\titlespacing*{\section}{0pt}{1.6em}{0.4em}
+\titleformat{\subsection}{\Large\bfseries\color{ink}}{}{0em}{}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.3em}
+\titleformat{\subsubsection}{\large\bfseries\color{muted}}{}{0em}{}
+\titlespacing*{\subsubsection}{0pt}{1em}{0.2em}
+\setlist{nosep, leftmargin=1.5em}
+\pagestyle{plain}
+
+% ── code boxes ──────────────────────────────────────────────────────
+\lstdefinestyle{shellstyle}{
+  language=bash,
+  basicstyle=\ttfamily\small\color{ink},
+  keywordstyle=\color{cmdred},
+  commentstyle=\color{cmdred},
+  stringstyle=\color{strgreen},
+  showstringspaces=false,
+  breaklines=true,
+  breakatwhitespace=true,
+  columns=fullflexible,
+  keepspaces=true,
+  upquote=true,
+}
+\lstdefinestyle{termstyle}{
+  basicstyle=\ttfamily\scriptsize\color{ink!85},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  upquote=true,
+}
+\newtcblisting{shell}{
+  listing only, listing style=shellstyle,
+  enhanced, breakable,
+  colback=shellbg, colframe=shellbg,
+  arc=3mm, boxrule=0pt,
+  left=4mm, right=3mm, top=1mm, bottom=2mm,
+  title={Shell}, fonttitle=\scriptsize\sffamily,
+  coltitle=muted, colbacktitle=shellbg,
+  attach title to upper={\par},
+  before title={}, toptitle=2mm, bottomtitle=0mm,
+}
+\newtcblisting{term}{
+  listing only, listing style=termstyle,
+  enhanced, breakable,
+  colback=termbg, colframe=termbg,
+  arc=2mm, boxrule=0pt,
+  left=3mm, right=3mm, top=1mm, bottom=2mm,
+  title={Output}, fonttitle=\scriptsize\sffamily,
+  coltitle=muted, colbacktitle=termbg,
+  attach title to upper={\par},
+  toptitle=2mm, bottomtitle=0mm,
+}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\notice}[1]{{\color{noticeblue}\bfseries NOTICE: #1\par}}
+
+\begin{document}
+
+% ── title page ──────────────────────────────────────────────────────
+\begin{center}
+  \includegraphics[width=0.46\linewidth]{../../assets/tensordex-logo.png}\par
+  \vspace{0.7em}
+  {\LARGE\bfseries SOSP'26 Artifact Evaluation\par}
+  \vspace{0.4em}
+  {\color{muted}for \emph{TensorDex: A Compact, Tensor-Centric Storage
+   System for Modern AI Models} (Paper \#323)\par}
+\end{center}
+\vspace{0.3em}
+
+\begin{tcolorbox}[enhanced, colback=shellbg, colframe=shellbg, arc=3mm,
+  boxrule=0pt, left=4mm, right=4mm, top=3mm, bottom=3mm]
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}p{0.13\linewidth}p{0.82\linewidth}@{}}
+\textbf{Code} & \url{https://github.com/Antlera/TensorDex} ---
+  step-by-step instructions in \code{ae/README.md}; reproduced figures
+  collect in \code{ae/RESULTS.md} \\
+\textbf{Data} & Hugging Face dataset \code{tensordex/tensordex-ae-cache}
+  ($\sim$8.3\,GB, public), fetched by \code{make ae-cache}. The paper's
+  full trace covers $\sim$40\,TB of model data and takes days to run, so we
+  ship its pre-computed results; they are verifiable by re-deriving random
+  samples from the raw tensor bytes we include (Tier 1) \\
+\textbf{Machine} & any x86\_64 Linux box: $\geq$8\,GB RAM,
+  $\geq$15\,GB disk, no GPU. Please comment on HotCRP with your SSH public
+  key and a time window if you would like us to provision the paper's eval
+  box (AWS c6a.48xlarge) for you \\
+\textbf{Time} & kick-the-tires $\sim$5 min $\cdot$ full offline
+  reproduction $\sim$45 min (\code{make reproduce-all}) \\
+\end{tabular}
+\end{tcolorbox}
+
+\section{Artifact at a Glance}
+
+Each claim in the paper maps to a single command that prints the measured
+value, the expected value, and an explicit PASS/FAIL verdict. The rest of
+this document walks through them: every command can be pasted into a
+terminal, and every output box shows the real output from our test machine.
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}p{0.40\linewidth}p{0.24\linewidth}p{0.29\linewidth}@{}}
+\toprule
+\rowcolor{shellbg}
+\textbf{Claim (paper)} & \textbf{Command} & \textbf{Expected} \\
+\midrule
+All figures derive from the published cache (Figs.~1, 2, 4, 11--16, Tab.~3) &
+\code{make figures} & 38/38 charts rendered \\
+\addlinespace[2pt]
+70.5\,\% (FM++) / 65.1\,\% (TensorX) reduction is genuine (Figs.~1, 11) &
+\code{make ae-fmpp \&\&} \code{make verify} & sampled rows re-derived from
+raw bytes, bit-exact \\
+\addlinespace[2pt]
+Sketch-based base selection matches exact search (Fig.~12a) &
+\code{make verify-recall} & Recall@1 $= 1.000$ \\
+\addlinespace[2pt]
+Reduction prediction error $\sim$1\,\% (Fig.~13) &
+\code{make verify-predict} & held-out MAE 1.11\,\%, Pearson 99.3\,\% \\
+\addlinespace[2pt]
+Pipeline is functional \& lossless (\S5) &
+\code{make full} & byte-exact round trip \\
+\addlinespace[2pt]
+FlexSplit $\approx$ ILP optimum, near-constant time (Fig.~14) &
+\code{make bench-fig14} & solver sweep re-run live \\
+\addlinespace[2pt]
+Codec throughput (Table~3, Fig.~1-right) &
+\code{make bench-table3-real} & 22.9\,/\,28.4~GB/s reference on
+c6a.48xlarge \\
+\bottomrule
+\multicolumn{3}{@{}l@{}}{\footnotesize Throughput variants:
+\code{bench-table3} $\cdot$ \code{bench-baselines} (ZipNN, OpenZL,
+official BitX).} \\
+\end{tabular}
+\end{center}
+
+\section{Installing TensorDex}
+
+TensorDex is a Python package with a Rust extension; it needs Rust
+$\geq 1.78$, Python $\geq 3.8$, and GNU make. From a fresh clone:
+
+\begin{shell}
+git clone --branch sosp26-ae https://github.com/Antlera/TensorDex.git
+cd TensorDex
+# Rust toolchain, if you don't already have one:
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+# a virtualenv (stock Ubuntu ships neither venv nor a usable system pip):
+sudo apt-get install -y python3-venv   # once; or use uv instead
+python3 -m venv .venv && source .venv/bin/activate
+# optional, saves ~5 GB: CPU-only torch (no GPU is ever used)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install .                          # builds the Rust extension
+pip install -r ae/requirements-ae.txt  # figure + verification deps
+\end{shell}
+
+The repo also ships a Dockerfile with everything (including the optional
+FM++ codec) preinstalled:
+
+\begin{shell}
+docker build -t tensordex-ae .
+docker run --rm tensordex-ae     # runs `make check` inside the container
+docker run -it --rm -v tensordex-cache:/tensordex/ae/cache tensordex-ae bash
+\end{shell}
+
+\section{Kick the Tires ($\sim$5 minutes, no download)}
+
+\code{make check} confirms the extension built correctly: it cross-checks the
+XXH3-128 content hash against an independent library (the ids in the shipped
+cache are these hashes) and runs the offline unit tests.
+
+\begin{shell}
+make check
+\end{shell}
+\begin{term}
+OK  build + XXH3-128 hash
+..................                                            [100%]
+18 passed, 1 skipped in 2.78s
+OK  build verified -- no download needed for this check
+\end{term}
+
+\code{make full} then runs the whole pipeline on a synthetic base + fine-tune
+pair --- ingest, tensor-level dedup, delta compression, and an
+integrity-verified pull --- entirely offline:
+
+\begin{shell}
+make full
+\end{shell}
+\begin{term}
+---- 1. ingest two models (tensor-level dedup) -------------------------
+  ingested base      (3 params)
+  ingested finetune  (3 params)
+  -> 2 models, 6 logical params, but only 4 unique tensors stored
+     (embed + norm are shared -> stored once)
+
+---- 2. compress the fine-tune against the base (raw -> delta) ---------
+  attn.weight: 1.00 MiB -> 0.10 MiB (10.0x) via tensorx delta
+
+---- 3. the delta-base graph lives in SQL (tensor_deltas) --------------
+  cd2a67cdf9de...  --delta(tensorx)-->  b35165b4faf5...
+  protected bases (gc-safe): ['b35165b4faf5...']
+
+---- 4. pull the fine-tune back, with integrity verification -----------
+  pull --verify -> 3 tensors, byte-exact round-trip: True
+  (attn.weight was delta-decoded against the base, then re-hashed)
+
+---- 5. sharded pull (bounds peak memory; HF-style index) --------------
+  --max-shard-size 8MiB -> 3 shards + index.json
+
+---- 6. gc keeps the base alive because a delta still needs it ---------
+  removed 'base' model; gc deleted 0 tensors, protected 1 delta base(s)
+  finetune still reconstructs after gc: True
+
+demo complete [ok]
+\end{term}
+
+If both commands pass, the build is good --- everything that follows is just
+data + compute.
+
+\section{Getting the Data}
+
+The evaluation cache lives in a public Hugging Face dataset (no token
+needed): \code{results.db} --- the 11.4\,M-pair compression cache every
+figure is drawn from --- plus the raw tensor blobs for Tier-1 verification
+and the staged chart inputs.
+
+\begin{shell}
+make ae-cache            # everything (~8.3 GB) -> ae/cache/
+make ae-cache-figures    # figures-only alternative (~6 GB, skips the blobs)
+\end{shell}
+
+This populates:
+
+\begin{term}
+ae/cache/
+  results.db                       11.4M-pair compression cache (5.6 GB)
+  sample_blobs/xx/yy/<id>.safetensors   raw tensors for Tier-1 verify (~2 GB)
+  data/tensordb_s3/metadata.db     tensor sizes + model->tensor map
+  model_hub_crawl/  tests/output/  compression_data/  ...   chart inputs
+\end{term}
+
+\section{Reproducing Experiment Results}
+
+\notice{Throughput/QPS panels (Fig.~1 right, Fig.~12b/c, Table~3) replot
+values measured on the paper's evaluation machine (c6a.48xlarge); absolute
+throughput on your box will differ --- re-measure it with
+\code{make bench-table3-real} (below). Every ratio-bearing result below is
+re-derived, not replotted.}
+
+\subsection{Every figure from the cache (Tier 0)}
+
+\begin{shell}
+make figures        # ~10 min -> ae/figures/*.png   (FMT=pdf for paper-quality)
+\end{shell}
+\begin{term}
+Rendering 38 charts from ae/cache/results.db
+
+  ok   algo_bench_q_proj.png
+  ok   algo_bench_v_proj.png
+  ok   bcs_memory.png
+  ...
+  ok   zipllm_real_bar.png
+  ok   zipllm_real_cdf.png
+
+============================================================
+rendered 38 figures -> ae/figures
+\end{term}
+
+\code{ae/RESULTS.md} lays the figures out against the paper's evaluation
+section, and \code{ae/FIGURE\_MAP.md} maps every chart id to its paper
+figure. \code{make report} builds a self-contained single-file
+\code{ae/results.html} with every figure embedded (\code{make serve} hosts
+it on \code{localhost:8000}).
+
+Two spot-checks against the paper --- Fig.~1 (left): TensorDex stores the
+corpus at $0.29\times$ (70.5\,\% saved), below every baseline; and Fig.~13:
+predicted vs.\ real reduction ratio hugs the diagonal:
+
+\begin{center}
+\includegraphics[height=4.1cm]{../figures/codec_storage_reduction.png}%
+\hspace{0.02\linewidth}%
+\includegraphics[height=4.1cm]{../figures/pred_vs_real_ratio.png}
+\end{center}
+
+\subsection{Bit-exact sample verification (Figs.~1 and 11, Tier 1)}
+
+The cache has 11.4\,M rows; rather than recompress all of them, you draw a
+random sample --- \emph{with a seed you choose} --- from the $\sim$342 rows
+the shipped raw-blob bundle covers, and every sampled row is
+re-derived from the raw tensor bytes shipped in the cache: the content ids
+are re-hashed (XXH3-128) and the TensorX / FM++ compression ratios are
+recomputed and compared against the cached values, bit for bit.
+
+First build the optional FM++ codec (the codec behind the 70.5\,\% result; vendored
+FM-Delta lib, x86\_64-linux --- skip this line and \code{verify} still checks
+TensorX):
+
+\begin{shell}
+make ae-fmpp             # maturin develop --release --features fmpp
+make verify              # N=200 default; or:
+python ae/verify_sample.py --n 300 --seed 7     # your own seed and size
+\end{shell}
+\begin{term}
+Scanning blob store ae/cache/sample_blobs ...
+  326 tensor blobs available
+  342 cached pairs fully covered by the blob sample
+
+Verifying 200 random pairs (seed=0, codecs: TensorX (level 1) + FM++)
+  [  1/200] OK  9a91c437e6a6...  id=[ok]  tratio got=0.345300830 exp=0.345300830
+  [  2/200] OK  09fef6d3451d...  id=[ok]  tratio got=0.336914062 exp=0.336914062
+  [  5/200] OK  72034a8240d1...  id=[ok]  tratio got=0.421907902 exp=0.421907902
+                                          fratio got=0.359875679 exp=0.359875679
+  [  6/200] OK  1d91936611eb...  id=[ok]  tratio got=0.068219866 exp=0.068219866
+                                          fratio got=0.034877232 exp=0.034877232
+  ... (194 more)
+
+================================================================
+content-id checks : 200/200 exact
+TensorX ratio     : 199/200 bit-exact (99.5%)  (1 legacy rows)
+FM++ ratio        : 94/94 bit-exact (100.0%)
+
+RESULT: PASS  cache reproduced from raw bytes
+================================================================
+\end{term}
+
+Because the cache is keyed by content hash, a matching id ties the row to
+real tensor bytes, and a matching ratio proves the cached number is what the
+codec actually produces on those bytes. You pick the seed, so we could not
+have pre-selected favorable rows. (The one non-bit-exact row above is a
+documented \emph{legacy row} --- it predates the final codec build and is
+reported with its timestamp; its content ids still match, and the run still
+PASSes. See Notes.)
+
+\subsection{TensorSketch Recall@1 (Fig.~12a)}
+
+Re-runs base selection twice over fingerprints recomputed from the shipped
+blobs --- exact brute-force search (ground truth) vs.\ the HNSW index
+TensorDex uses --- and reports how often they pick the same delta base:
+
+\begin{shell}
+make verify-recall
+\end{shell}
+\begin{term}
+Recomputing BCS fingerprints (d=2, w=1024) for 326 tensors ...
+Greedy base-selection: brute-force (ground truth) vs hnswlib (HNSW) ...
+
+================================================================
+tensors 326  .  bases 67  .  attached 259
+TensorSketch Recall@1 (HNSW base == brute-force base) : 1.0000
+
+RESULT: PASS  matches the paper's ~1.0 recall (>=0.99)
+================================================================
+\end{term}
+
+\subsection{Reduction-ratio prediction (Fig.~13)}
+
+This is reproduced \emph{as an experiment, not a replot}: TensorPred's hybrid
+model is re-fit from the cached \code{(bcs\_dist, ratio)} pairs by ordinary
+least squares --- no stored coefficients --- trained on a random half and
+evaluated on the held-out half:
+
+\begin{shell}
+make verify-predict
+\end{shell}
+\begin{term}
+  pairs   : 5,768,502  (bcs_dist > 0, aratio not null, bytes_in > 100KB)
+
+  recovered hybrid coefficients (train split):
+    c0=-6.0383  c1=+0.1553  c2=+0.6240  c3=+0.0135
+
+                               MAE    Med.AE     Pearson
+  held-out (50% test)        1.11%     0.79%       99.3%   (n=2,884,251)
+  paper (Fig 13)             1.11%     0.79%       99.3%
+
+  provenance vs stored pred_ratio: max|delta|=0.0001  Pearson=100.000%
+
+  PASS: held-out prediction MAE 1.11% (< 1.5%), Pearson 99.3% (> 99%)
+\end{term}
+
+The recovered model also matches the cache's stored \code{pred\_ratio}
+column to $10^{-4}$ --- confirming that column \emph{is} this model, not a
+hand-tuned constant.
+
+\subsection{FlexSplit vs.\ ILP / Primal--Dual (Fig.~14)}
+
+Actually runs the three facility-location solvers over the cached pairwise
+ratios, sweeping model counts, and re-renders both panels. Expect FlexSplit
+within a few points of the ILP optimum at near-constant time, while ILP time
+grows super-linearly.
+
+\begin{shell}
+make bench-fig14    # 15-25 min; ILP needs gurobipy + a (free academic)
+                    # Gurobi license -- skipped automatically if absent
+\end{shell}
+
+\subsection{Codec throughput (Table 3, Fig.~1-right)}
+
+Re-measures TensorX with the paper's exact setup: the real
+Qwen2.5-7B\,/\,-Instruct pair, 2\,MB sub-chunks, zstd level~1, pure codec
+compute across all cores. Below is this command's output on a c6a.48xlarge
+during packaging --- reduction matches the paper exactly and throughput lands
+on the published numbers. Baseline rows in Table~3 cite each system's own
+published figures (ZipLLM, ZipNN, OpenZL); \code{ae/bench\_baselines.py}
+re-runs the external tools where they are installed.
+
+\begin{shell}
+make bench-table3-real   # ~30 GB model download on first run, ~32 GB RAM
+make bench-table3        # synthetic variant, no download
+make bench-baselines     # ZipNN / OpenZL (optional external tools)
+\end{shell}
+\begin{term}
+TensorX codec throughput - real model pair (14525 MB across 7481
+chunks, 192 threads, zstd L1)
+  reduction    0.406x (59.4% saved)   round-trip byte-exact [ok]
+  compress     avg   24.3 GB/s   peak   24.7 GB/s
+  decompress   avg   28.6 GB/s   peak   29.2 GB/s
+
+paper reference (c6a.48xlarge, 192 vCPU, real Qwen2.5-7B pair):
+  22.9 / 28.4 GB/s @ 59.4%
+RESULT: PASS  round-trip byte-exact; throughput measured
+\end{term}
+
+\subsection{Everything in one command}
+
+After \code{make ae-cache}, this runs all of the above (except the solver
+benchmark) plus the HTML report, back to back:
+
+\begin{shell}
+make reproduce-all       # Tier 0 + Tier 1 + Tier 2 demo + report, ~30-45 min
+\end{shell}
+
+\section{Running on Your Own Models}
+
+The same pipeline works on live Hugging Face repos --- pick a base and a
+fine-tune and TensorDex reports the achieved storage reduction:
+
+\begin{shell}
+python ae/run_full.py --mode hf \
+    --models Qwen/Qwen2.5-0.5B Qwen/Qwen2.5-0.5B-Instruct
+python ae/render.py --only reduction_global --format pdf   # re-render one chart
+python ae/run_full.py --recipe   # the full 40 TB / 2,890-model trace recipe
+\end{shell}
+
+\end{document}

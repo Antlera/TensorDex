@@ -1,0 +1,55 @@
+[package]
+name = "tensordex_ops"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tensordex_ops"
+crate-type = ["cdylib", "rlib"]
+path = "src/rust/lib.rs"
+
+[dependencies]
+pyo3 = { version = "0.20" }
+numpy = "0.20"
+ndarray = { version = "0.15", features = ["rayon", "std"] }
+rayon = "1.7"
+byteorder = "1.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+once_cell = "1.19"
+csv = "1.3"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+zstd = { version = "0.13", features = ["zstdmt"] }
+lz4_flex = "0.11"
+half = "2.3"
+memmap2 = "0.9"
+libc = "0.2"
+safetensors = "0.4"
+num_cpus = "1.16"
+dashmap = "5.5"
+bytemuck = "1.23"
+chrono = "0.4"
+crossbeam = "0.8"
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+aws-config = "1.8.11"
+aws-sdk-s3 = "1.115.0"
+tokio = { version = "1.48.0", features = ["full"] }
+lz4 = "1.28.1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+axum = "0.8.9"
+tokio-util = { version = "0.7.18", features = ["io"] }
+
+[features]
+default = []
+# Linked by maturin builds (python wheels); native bins/examples leave it off.
+extension-module = ["pyo3/extension-module"]
+# Optional FM++ codec — links the vendored FM-Delta static lib
+# (third_party/fmdelta/libfmdelta.a). Off by default so the base build stays
+# pure-Rust and portable. See ae/README.md and third_party/fmdelta/README.md.
+fmpp = []
+
+[build-dependencies]
+pyo3-build-config = "0.20"
